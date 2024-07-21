@@ -1,9 +1,7 @@
 import asyncio
 import json
-import logging
 import sqlite3
 import os
-import sys
 from typing import List
 from urllib.parse import urlparse, urlunparse
 
@@ -16,10 +14,6 @@ from pydantic import BaseModel
 
 # Debug mode
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-
-# Configure logging
-logging.basicConfig(filename='error.log', level=logging.ERROR)
-logger = logging.getLogger(__name__)
 
 # Custom print function
 def debug_print(*args, **kwargs):
