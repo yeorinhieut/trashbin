@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN apt update && apt install git
+RUN apt update && apt install git -y
 
 RUN pip install --no-cache-dir fastapi uvicorn aiohttp filetype pydantic
 
