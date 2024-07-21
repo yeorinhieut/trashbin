@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dc-archiver</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    @media (max-width: 640px) {
+      body {
+        padding: 4px;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div id="app" class="max-w-4xl mx-auto bg-white p-4 rounded shadow my-8">
+    <h1 class="text-3xl font-semibold mb-4">Deleted Posts</h1>
+    <ul id="postList" class="space-y-2">
+      <!-- Posts will be dynamically added here using JavaScript -->
+    </ul>
+    <div class="flex justify-between items-center mt-4">
+      <button id="prevPageBtn" class="text-blue-500" disabled>Previous</button>
+      <span id="currentPage" class="text-gray-600 text-sm flex-1 text-center"></span>
+      <button id="nextPageBtn" class="text-blue-500" disabled>Next</button>
+    </div>
+  </div>
+  <footer class="text-center text-gray-500 text-sm my-4">
+    &copy; 2024 yeorinhieut@gmail.com
+  </footer>
+
+  <script>
+    let currentPage = 1;
+
+    async function fetchPosts(page) {
+      try {
+        const response = await axios.get(`/api/deleted?page=${page}`);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+        return [];
+      }
+    }
+
+    function renderPosts(posts) {
+      const postList = document.getElementById('postList');
+      postList.innerHTML = '';
+      
+      posts.forEach(post => {
+        const listItem = document.createElement('li');
+        listItem.className = 'border p-2 rounded';
+        listItem.innerHTML = `
+          <h2 class="text-sm font-semibold"><a href="/app/view.html?id=${post.id}" class="text-blue-500">${post.title}</a></h2>
+          <p class="text-xs text-gray-600">${post.author} - ${beautifyTime(post.time)}</p>
+        `;
+        postList.appendChild(listItem);
+      });
+    }
+
+    function beautifyTime(time) {
+      const options = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false };
+      return new Date(time).toLocaleString(undefined, options);
+    }
+
+    async function updatePage() {
+      const posts = await fetchPosts(currentPage);
+      renderPosts(posts);
+      document.getElementById('prevPageBtn').disabled = currentPage === 1;
+      document.getElementById('nextPageBtn').disabled = posts.length < 20; // Assuming 20 posts per page
+      document.getElementById('currentPage').textContent = `Page ${currentPage}`;
+    }
+
+    document.getElementById('prevPageBtn').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        updatePage();
+      }
+    });
+
+    document.getElementById('nextPageBtn').addEventListener('click', () => {
+      currentPage++;
+      updatePage();
+    });
+
+    // Initial page load
+    updatePage();
+  </script>
+</body>
+</html>

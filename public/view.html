@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    .post-container {
+      max-width: 800px;
+      width: 100%;
+      margin: 8px auto;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+  <button onclick="goBack()" class="mt-4 text-blue-500 hover:underline focus:outline-none">
+    &larr; Go back
+  </button>
+
+  <div class="post-container bg-white mt-8 p-8">
+    <h1 class="text-3xl font-bold mb-4" id="postTitle"></h1>
+    <p class="text-gray-600 text-sm mb-2" id="postMeta"></p>
+    <div class="mb-4" id="postContents"></div>
+    <div id="postImages" class="flex flex-col items-center mt-4 space-y-4"></div>
+  </div>
+
+  <script>
+    function goBack() {
+      window.history.back();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const postId = urlParams.get('id');
+      const apiUrl = `/api/post?id=${postId}`;
+
+      axios.get(apiUrl)
+        .then(response => {
+          const data = response.data;
+          document.getElementById('postTitle').textContent = data.title;
+          document.getElementById('postMeta').textContent = `By ${data.author} on ${new Date(data.time).toLocaleString()}`;
+
+          const contentsContainer = document.getElementById('postContents');
+          const paragraphs = data.contents.split('\n');
+          paragraphs.forEach(paragraph => {
+            const paragraphElement = document.createElement('p');
+            paragraphElement.textContent = paragraph;
+            paragraphElement.className = 'mb-2';
+            contentsContainer.appendChild(paragraphElement);
+          });
+
+          const imagesContainer = document.getElementById('postImages');
+          if (data.images && data.images.length > 0) {
+            data.images.forEach((image, index) => {
+              const imageUrl = Object.values(image)[0];
+
+              const imgElement = document.createElement('img');
+              imgElement.src = imageUrl;
+              imgElement.alt = `Image ${index + 1}`;
+              imgElement.className = 'max-w-full h-auto rounded shadow';
+              
+              imgElement.addEventListener('click', function() {
+                window.open(imageUrl, '_blank');
+              });
+
+              imagesContainer.appendChild(imgElement);
+            });
+          } else {
+            imagesContainer.style.display = 'none';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching data:', error);
+          window.location.href = 'https://http.cat/404'; // Redirect to a 404 page
+        });
+    });
+  </script>
+</body>
+</html>
