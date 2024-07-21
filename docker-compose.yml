@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  trashbin:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GALLERY_ID=sff
+      - DELAY=5
+      - DEBUG=false
+    restart: unless-stopped
