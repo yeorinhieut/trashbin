@@ -9,4 +9,6 @@ services:
       - GALLERY_ID=sff
       - DELAY=5
       - DEBUG=false
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped

@@ -21,7 +21,7 @@ def debug_print(*args, **kwargs):
         print(*args, **kwargs)
 
 # Database setup
-conn = sqlite3.connect('./database.db', check_same_thread=False)
+conn = sqlite3.connect('./data/trash.db', check_same_thread=False)
 cursor = conn.cursor()
 
 # Create tables if not exist
