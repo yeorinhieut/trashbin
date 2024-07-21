@@ -6,7 +6,7 @@ COPY . /app
 
 RUN pip install --no-cache-dir -r fastapi uvicorn aiohttp filetype pydantic
 
-RUN pip install git+https://github.com/inside-dc/dc_api.git
+RUN pip install git+https://github.com/inside-dc/dcinside-python3-api.git
 
 EXPOSE 8000
 
