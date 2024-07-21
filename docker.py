@@ -46,11 +46,42 @@ root_html = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="refresh" content="3;url=/app">
     <title>Redirecting...</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            text-align: center;
+            padding: 10px 20px; 
+            background-color: white;
+            border-radius: 0; /* 각진 모서리 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-out;
+        }
+        p {
+            color: #777;
+            font-size: 14px;
+            margin: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
 </head>
 <body>
-    <h1>Redirecting to /app in 3 seconds...</h1>
+    <div class="container">
+        <p>Redirecting to main page...</p>
+    </div>
     <script>
         setTimeout(function() {
             window.location.href = "/app";
