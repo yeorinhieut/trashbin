@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Debug mode
-DEBUG = "--debug" in sys.argv
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # Configure logging
 logging.basicConfig(filename='error.log', level=logging.ERROR)
@@ -46,22 +46,7 @@ app = FastAPI()
 
 app.mount("/app", StaticFiles(directory="public", html=True), name="static")
 
-class DeletedPost(BaseModel):
-    id: int
-    title: str
-    author: str
-    time: str
-
-class FullPost(BaseModel):
-    id: int
-    title: str
-    author: str
-    time: str
-    contents: str
-    images: List[dict]
-    isdeleted: int
-    isblinded: int
-
+# HTML content for root redirect
 root_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -81,33 +66,22 @@ root_html = """
 </html>
 """
 
-async def get_user_input():
-    if os.path.exists('config.json'):
-        debug_print("config.json found. Loading existing configuration.")
-        with open('config.json', 'r') as f:
-            config = json.load(f)
-        gallery_id = config['galleries'][0]['id']
-        delay = config['galleries'][0]['delay']
-    else:
-        gallery_id = input("Please enter the gallery ID you want to archive: ")
-        delay = int(input("Please enter the delay between requests (in seconds): "))
-        
-        config = {
-            "galleries": [
-                {
-                    "id": gallery_id,
-                    "delay": delay
-                }
-            ]
-        }
-        
-        with open("config.json", "w") as f:
-            json.dump(config, f)
-        
-        debug_print("config.json has been created.")
+class DeletedPost(BaseModel):
+    id: int
+    title: str
+    author: str
+    time: str
 
-    debug_print(f"Archiving gallery: {gallery_id} with delay: {delay} seconds")
-    return gallery_id, delay
+class FullPost(BaseModel):
+    id: int
+    title: str
+    author: str
+    time: str
+    contents: str
+    images: List[dict]
+    isdeleted: int
+    isblinded: int
+
 
 async def get_latest_posts(api, gallery_id, num_latest):
     debug_print(f"Fetching {num_latest} latest posts from gallery {gallery_id}")
@@ -193,10 +167,16 @@ async def check_deleted(gallery_id, id):
         debug_print(f"Error checking deletion status of post {id}: {e}")
 
 async def crawler_main():
-    gallery_id, delay = await get_user_input()
+    gallery_id = os.getenv("GALLERY_ID")
+    delay = int(os.getenv("DELAY", "5"))
+    
+    if not gallery_id:
+        debug_print("Error: GALLERY_ID environment variable is not set.")
+        return
+
+    debug_print(f"Starting main crawler loop for gallery {gallery_id}")
     api = API()
     
-    debug_print(f"Starting main crawler loop for gallery {gallery_id}")
     while True:
         try:
             latest_posts = await get_latest_posts(api, gallery_id, 10)
@@ -213,15 +193,12 @@ async def crawler_main():
             logger.error(f"Error in main loop: {e}")
             debug_print(f"Error in main crawler loop: {e}")
 
-async def delayed_check(gallery_id, id):
-    debug_print(f"Scheduling deletion check for post {id} in 30 minutes")
-    await asyncio.sleep(1800)  # Wait for 30 minutes
-    await check_deleted(gallery_id, id)
-
 @app.on_event("startup")
 async def startup_event():
     debug_print("Starting up the FastAPI application")
     asyncio.create_task(crawler_main())
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
