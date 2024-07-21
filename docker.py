@@ -193,6 +193,11 @@ async def crawler_main():
             logger.error(f"Error in main loop: {e}")
             debug_print(f"Error in main crawler loop: {e}")
 
+async def delayed_check(gallery_id, id):
+    debug_print(f"Scheduling deletion check for post {id} in 30 minutes")
+    await asyncio.sleep(1800)  # Wait for 30 minutes
+    await check_deleted(gallery_id, id)
+
 @app.on_event("startup")
 async def startup_event():
     debug_print("Starting up the FastAPI application")
