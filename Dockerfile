@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY . /app
 
+RUN apt update && apt install git
+
 RUN pip install --no-cache-dir fastapi uvicorn aiohttp filetype pydantic
 
 RUN pip install git+https://github.com/inside-dc/dcinside-python3-api.git
