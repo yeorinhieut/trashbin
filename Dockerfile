@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . /app
 
-RUN apt update && apt install git -y
+RUN apt update && apt install git -y    
 
 RUN pip install --no-cache-dir fastapi uvicorn aiohttp filetype pydantic
 
@@ -16,4 +16,4 @@ ENV GALLERY_ID=sff
 ENV DELAY=10
 ENV DEBUG=false
 
-CMD ["python", "-u", "docker.py"]
+CMD ["python", "-u", "main.py"]

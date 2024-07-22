@@ -1,9 +1,7 @@
 import asyncio
 import json
-import logging
 import sqlite3
 import os
-import sys
 from typing import List
 from urllib.parse import urlparse, urlunparse
 
@@ -15,11 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Debug mode
-DEBUG = "--debug" in sys.argv
-
-# Configure logging
-logging.basicConfig(filename='error.log', level=logging.ERROR)
-logger = logging.getLogger(__name__)
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # Custom print function
 def debug_print(*args, **kwargs):
@@ -27,7 +21,7 @@ def debug_print(*args, **kwargs):
         print(*args, **kwargs)
 
 # Database setup
-conn = sqlite3.connect('./database.db', check_same_thread=False)
+conn = sqlite3.connect('./data/trash.db', check_same_thread=False)
 cursor = conn.cursor()
 
 # Create tables if not exist
@@ -46,22 +40,7 @@ app = FastAPI()
 
 app.mount("/app", StaticFiles(directory="public", html=True), name="static")
 
-class DeletedPost(BaseModel):
-    id: int
-    title: str
-    author: str
-    time: str
-
-class FullPost(BaseModel):
-    id: int
-    title: str
-    author: str
-    time: str
-    contents: str
-    images: List[dict]
-    isdeleted: int
-    isblinded: int
-
+# HTML content for root redirect
 root_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -84,7 +63,7 @@ root_html = """
             text-align: center;
             padding: 10px 20px; 
             background-color: white;
-            border-radius: 0; 
+            border-radius: 0; /* 각진 모서리 */
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             animation: fadeIn 0.5s ease-out;
         }
@@ -112,41 +91,34 @@ root_html = """
 </html>
 """
 
-async def get_user_input():
-    if os.path.exists('config.json'):
-        debug_print("config.json found. Loading existing configuration.")
-        with open('config.json', 'r') as f:
-            config = json.load(f)
-        gallery_id = config['galleries'][0]['id']
-        delay = config['galleries'][0]['delay']
-    else:
-        gallery_id = input("Please enter the gallery ID you want to archive: ")
-        delay = int(input("Please enter the delay between requests (in seconds): "))
-        
-        config = {
-            "galleries": [
-                {
-                    "id": gallery_id,
-                    "delay": delay
-                }
-            ]
-        }
-        
-        with open("config.json", "w") as f:
-            json.dump(config, f)
-        
-        debug_print("config.json has been created.")
+class DeletedPost(BaseModel):
+    id: int
+    title: str
+    author: str
+    time: str
 
-    debug_print(f"Archiving gallery: {gallery_id} with delay: {delay} seconds")
-    return gallery_id, delay
+class FullPost(BaseModel):
+    id: int
+    title: str
+    author: str
+    time: str
+    contents: str
+    images: List[dict]
+    isdeleted: int
+    isblinded: int
+
 
 async def get_latest_posts(api, gallery_id, num_latest):
     debug_print(f"Fetching {num_latest} latest posts from gallery {gallery_id}")
     latest_posts = []
-    async for index in api.board(board_id=gallery_id, num=num_latest, start_page=1):
-        latest_posts.append(index.id)
-    debug_print(f"Fetched post numbers: {latest_posts}")
+    try:
+        async for index in api.board(board_id=gallery_id, num=num_latest, start_page=1):
+            latest_posts.append(index.id)
+        debug_print(f"Fetched post numbers: {latest_posts}")
+    except Exception as e:
+        debug_print(f"Error fetching latest posts: {e}")
     return sorted(latest_posts)
+
 
 async def is_post_crawled(id):
     cursor.execute("SELECT COUNT(*) FROM posts WHERE id = ?", (id,))
@@ -161,12 +133,15 @@ async def crawl_post(api, gallery_id, id):
         debug_print(f"Post {id} already exists in database. Skipping.")
         return
     
-    doc = await api.document(board_id=gallery_id, document_id=id)
-    if doc:
-        await save_post(id, doc)
-        debug_print(f"Post saved: {id}")
-    else:
-        debug_print(f"Post not found: {id}")
+    try:
+        doc = await api.document(board_id=gallery_id, document_id=id)
+        if doc:
+            await save_post(id, doc)
+            debug_print(f"Post saved: {id}")
+        else:
+            debug_print(f"Post not found: {id}")
+    except Exception as e:
+        debug_print(f"Error crawling post {id}: {e}")
 
 async def save_post(id, doc):
     debug_print(f"Saving post {id} to database")
@@ -210,39 +185,58 @@ async def check_deleted(gallery_id, id):
         'User-Agent': "Mozilla/5.0 (Linux; Android 7.0; SM-G892A Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/67.0.3396.87 Mobile Safari/537.36"
     }
     url = f"https://m.dcinside.com/board/{gallery_id}/{id}"
+    is_deleted = False
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status in {403, 404}:
-                    cursor.execute("UPDATE posts SET isdeleted = 1 WHERE id = ?", (id,))
-                    conn.commit()
+                    is_deleted = True
                     debug_print(f"Post {id} is deleted.")
                 else:
                     debug_print(f"Post {id} still exists.")
-    except aiohttp.ClientError as e:
-        logger.error(f"Error in check_deleted: {e}")
+    except Exception as e:
         debug_print(f"Error checking deletion status of post {id}: {e}")
 
+    try:
+        if is_deleted:
+            cursor.execute("UPDATE posts SET isdeleted = 1 WHERE id = ?", (id,))
+            conn.commit()
+            debug_print(f"Database updated: Post {id} marked as deleted.")
+        else:
+            debug_print(f"No database update needed for post {id}.")
+    except sqlite3.Error as e:
+        debug_print(f"Database error while updating post {id}: {e}")
+    
+
 async def crawler_main():
-    gallery_id, delay = await get_user_input()
+    gallery_id = os.getenv("GALLERY_ID")
+    delay = int(os.getenv("DELAY", "5"))
+    
+    if not gallery_id:
+        debug_print("Error: GALLERY_ID environment variable is not set.")
+        return
+
+    debug_print(f"Starting main crawler loop for gallery {gallery_id}")
     api = API()
     
-    debug_print(f"Starting main crawler loop for gallery {gallery_id}")
     while True:
         try:
             latest_posts = await get_latest_posts(api, gallery_id, 10)
             
             for id in latest_posts:
-                if not await is_post_crawled(id):
-                    await crawl_post(api, gallery_id, id)
-                    asyncio.create_task(delayed_check(gallery_id, id))
+                try:
+                    if not await is_post_crawled(id):
+                        await crawl_post(api, gallery_id, id)
+                        asyncio.create_task(delayed_check(gallery_id, id))
+                except Exception as e:
+                    debug_print(f"Error processing post {id}: {e}")
             
             debug_print(f"Waiting for {delay} seconds before next batch of requests")
             await asyncio.sleep(delay)  # Wait after processing all 10 posts
             
         except Exception as e:
-            logger.error(f"Error in main loop: {e}")
-            debug_print(f"Error in main crawler loop: {e}")
+            debug_print(f"Error in main loop: {e}")
+            
 
 async def delayed_check(gallery_id, id):
     debug_print(f"Scheduling deletion check for post {id} in 30 minutes")
@@ -253,6 +247,8 @@ async def delayed_check(gallery_id, id):
 async def startup_event():
     debug_print("Starting up the FastAPI application")
     asyncio.create_task(crawler_main())
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
