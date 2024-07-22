@@ -4,6 +4,7 @@
 
 ## 빠른 시작
 
+### docker-compose
 1. 저장소 클론:
    ```
    git clone https://github.com/yeorinhieut/trashbin.git
@@ -17,6 +18,23 @@
 3. 애플리케이션 실행:
    ```
    docker compose up -d
+   ```
+   
+### docker cli
+1. 저장소 클론:
+   ```
+   git clone https://github.com/yeorinhieut/trashbin.git
+   cd trashbin
+   ```
+
+2. 이미지 빌드
+   ```
+   docker build -t trashbin .
+   ```
+   
+3. 애플리케이션 실행
+   ```
+   docker run -d --name trashbin -p 8000:8000 -e GALLERY_ID=sff -e DELAY=15 -e DEBUG=false -v path/to/data:/app/data --restart unless-stopped trashbin
    ```
 
 지정한 갤러리의 쓰레기 수집이 시작됩니다. 웹 인터페이스는 `http://ip:port`에서 접근 가능합니다.
