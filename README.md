@@ -32,7 +32,7 @@
    docker build -t trashbin .
    ```
    
-3. 애플리케이션 실행
+3. 애플리케이션 실행(적당히 인자들을 수정하세요)
    ```
    docker run -d --name trashbin -p 8000:8000 -e GALLERY_ID=sff -e DELAY=15 -e DEBUG=false -v path/to/data:/app/data --restart unless-stopped trashbin
    ```
