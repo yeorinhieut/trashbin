@@ -111,15 +111,15 @@ class DeletedPost(BaseModel):
     time: str
 
 class FullPost(BaseModel):
-    id: int
-    title: str
-    author: str
-    author_id: str
-    time: str
-    contents: str
-    images: List[dict]
-    isdeleted: int
-    isblinded: int
+   id: int
+   title: str
+   author: str
+   author_id: str | None
+   time: str
+   contents: str
+   images: List[dict]
+   isdeleted: int
+   isblinded: int
 
 
 async def get_latest_posts(api, gallery_id, num_latest):
@@ -287,7 +287,7 @@ async def get_deleted_posts(page: int = 1):
     debug_print(f"Fetched {len(deleted_posts)} deleted posts")
     return [DeletedPost(id=row[0], title=row[1], author=row[2], author_id=row[3], time=row[4]) for row in deleted_posts]
 
-@app.get("/api/post", response_model=FullPost)
+@app.get("/api/post", response_model=FullPost) 
 async def get_post(id: int):
    cursor.execute("SELECT * FROM posts WHERE id = ?", (id,))
    post = cursor.fetchone()
@@ -299,11 +299,13 @@ async def get_post(id: int):
    except (json.JSONDecodeError, TypeError):
        images = []
        
+   author_id = None if post[3] == 'null' else post[3]
+       
    return FullPost(
        id=post[0],
        title=post[1],
        author=post[2],
-       author_id=post[3] if post[3] != 'null' else None,
+       author_id=author_id,
        time=post[4],
        contents=post[5],
        images=images,
