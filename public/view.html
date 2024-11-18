@@ -43,7 +43,7 @@
         .then(response => {
           const data = response.data;
           document.getElementById('postTitle').textContent = data.title;
-          document.getElementById('postMeta').textContent = `By ${data.author} on ${new Date(data.time).toLocaleString()}`;
+          document.getElementById('postMeta').textContent = `By ${data.author} - ${data.author_id} on ${new Date(data.time).toLocaleString()}`;
 
           const contentsContainer = document.getElementById('postContents');
           const paragraphs = data.contents.split('\n');

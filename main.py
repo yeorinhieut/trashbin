@@ -29,6 +29,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS posts
                   (id INTEGER PRIMARY KEY,
                    title TEXT,
                    author TEXT,
+                   author_id TEXT DEFAULT NULL,
                    time TEXT,
                    contents TEXT,
                    images TEXT,
@@ -95,12 +96,14 @@ class DeletedPost(BaseModel):
     id: int
     title: str
     author: str
+    author_id: str
     time: str
 
 class FullPost(BaseModel):
     id: int
     title: str
     author: str
+    author_id: str
     time: str
     contents: str
     images: List[dict]
@@ -154,9 +157,9 @@ async def save_post(id, doc):
     time_str = doc.time.isoformat()
 
     try:
-        cursor.execute('''INSERT OR REPLACE INTO posts (id, title, author, time, contents, images)
+        cursor.execute('''INSERT OR REPLACE INTO posts (id, title, author, author_id, time, contents, images)
                           VALUES (?, ?, ?, ?, ?, ?)''',
-                       (id, doc.title, doc.author, time_str, doc.contents, json.dumps(images)))
+                       (id, doc.title, doc.author, doc.author_id, time_str, doc.contents, json.dumps(images)))
         conn.commit()
         debug_print(f"Post {id} saved to database successfully")
     except sqlite3.Error as e:
@@ -259,7 +262,7 @@ async def get_deleted_posts(page: int = 1):
     debug_print(f"Fetching deleted posts for page {page}")
     offset = (page - 1) * 20
     cursor.execute("""
-        SELECT id, title, author, time
+        SELECT id, title, author, author_id, time
         FROM posts
         WHERE isdeleted = 1
         ORDER BY time DESC
@@ -267,7 +270,7 @@ async def get_deleted_posts(page: int = 1):
     """, (offset,))
     deleted_posts = cursor.fetchall()
     debug_print(f"Fetched {len(deleted_posts)} deleted posts")
-    return [DeletedPost(id=row[0], title=row[1], author=row[2], time=row[3]) for row in deleted_posts]
+    return [DeletedPost(id=row[0], title=row[1], author=row[2], author_id=row[3], time=row[4]) for row in deleted_posts]
 
 @app.get("/api/post", response_model=FullPost)
 async def get_post(id: int):
@@ -282,11 +285,12 @@ async def get_post(id: int):
         id=post[0],
         title=post[1],
         author=post[2],
-        time=post[3],
-        contents=post[4],
-        images=json.loads(post[5]),
-        isdeleted=post[6],
-        isblinded=post[7]
+        author_id=post[3],
+        time=post[4],
+        contents=post[5],
+        images=json.loads(post[6]),
+        isdeleted=post[7],
+        isblinded=post[8]
     )
 
 @app.get("/api/database_check")
