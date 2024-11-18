@@ -20,33 +20,29 @@ def debug_print(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
 
-def add_column_if_not_exists(cursor, table_name, column_name, column_type):
-    try:
-        cursor.execute(f"SELECT {column_name} FROM {table_name} LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
-        debug_print(f"Added new column {column_name} to {table_name}")
-
 # Database setup
 conn = sqlite3.connect('./data/trash.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Create table if not exists
+# Create tables if not exist with author_id column (nullable)
 cursor.execute('''CREATE TABLE IF NOT EXISTS posts
                   (id INTEGER PRIMARY KEY,
                    title TEXT,
                    author TEXT,
+                   author_id TEXT,
                    time TEXT,
                    contents TEXT,
                    images TEXT,
                    isdeleted INTEGER DEFAULT 0,
                    isblinded INTEGER DEFAULT 0)''')
-
-# Add new columns if they don't exist
-add_column_if_not_exists(cursor, 'posts', 'author_id', 'TEXT DEFAULT NULL')
-
 conn.commit()
 
+# Add author_id column if it doesn't exist
+try:
+    cursor.execute("ALTER TABLE posts ADD COLUMN author_id TEXT")
+    conn.commit()
+except sqlite3.OperationalError:
+    debug_print("author_id column already exists")
 
 app = FastAPI()
 
@@ -107,19 +103,19 @@ class DeletedPost(BaseModel):
     id: int
     title: str
     author: str
-    author_id: str
+    author_id: Optional[str]
     time: str
 
 class FullPost(BaseModel):
-   id: int
-   title: str
-   author: str
-   author_id: Optional[str]
-   time: str
-   contents: str
-   images: List[dict]
-   isdeleted: int
-   isblinded: int
+    id: int
+    title: str
+    author: str
+    author_id: Optional[str]
+    time: str
+    contents: str
+    images: List[dict]
+    isdeleted: int
+    isblinded: int
 
 
 async def get_latest_posts(api, gallery_id, num_latest):
@@ -158,35 +154,31 @@ async def crawl_post(api, gallery_id, id):
         debug_print(f"Error crawling post {id}: {e}")
 
 async def save_post(id, doc):
-   debug_print(f"Saving post {id} to database")
-   images = []
-   for i, image in enumerate(doc.images, start=1):
-       image_url = change_domain(image.src)
-       if image_url is not None:
-           images.append({"image{}".format(i): image_url})
+    debug_print(f"Saving post {id} to database")
+    images = []
+    for i, image in enumerate(doc.images, start=1):
+        image_url = change_domain(image.src)
+        if image_url is not None:
+            images.append({"image{}".format(i): image_url})
 
-   time_str = doc.time.isoformat()
-   author_id = getattr(doc, 'author_id', 'null')
-   
-   try:
-       cursor.execute('''INSERT OR REPLACE INTO posts
-                        (id, title, author, author_id, time, contents, images, isdeleted, isblinded)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                     (id, doc.title, doc.author, author_id, time_str, doc.contents,
-                      json.dumps(images), 0, 0))
-       conn.commit()
-       debug_print(f"Post {id} saved to database successfully")
-       
-       # Verify the post was saved
-       cursor.execute("SELECT * FROM posts WHERE id = ?", (id,))
-       saved_post = cursor.fetchone()
-       if saved_post:
-           debug_print(f"Post {id} verified in database: {saved_post}")
-       else:
-           debug_print(f"Post {id} not found in database after save attempt")
-           
-   except sqlite3.Error as e:
-       debug_print(f"An error occurred while saving post {id}: {e}")
+    time_str = doc.time.isoformat()
+
+    try:
+        cursor.execute('''INSERT OR REPLACE INTO posts (id, title, author, author_id, time, contents, images)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                       (id, doc.title, doc.author, getattr(doc, 'author_id', None), time_str, doc.contents, json.dumps(images)))
+        conn.commit()
+        debug_print(f"Post {id} saved to database successfully")
+    except sqlite3.Error as e:
+        debug_print(f"An error occurred while saving post {id}: {e}")
+    
+    # Verify the post was saved
+    cursor.execute("SELECT * FROM posts WHERE id = ?", (id,))
+    saved_post = cursor.fetchone()
+    if saved_post:
+        debug_print(f"Post {id} verified in database: {saved_post}")
+    else:
+        debug_print(f"Post {id} not found in database after save attempt")
 
 def change_domain(url):
     if "dccon.php" in url:
@@ -266,8 +258,6 @@ async def startup_event():
     debug_print("Starting up the FastAPI application")
     asyncio.create_task(crawler_main())
 
-
-
 @app.get("/", response_class=HTMLResponse)
 async def root():
     return root_html
@@ -287,31 +277,26 @@ async def get_deleted_posts(page: int = 1):
     debug_print(f"Fetched {len(deleted_posts)} deleted posts")
     return [DeletedPost(id=row[0], title=row[1], author=row[2], author_id=row[3], time=row[4]) for row in deleted_posts]
 
-@app.get("/api/post", response_model=FullPost) 
+@app.get("/api/post", response_model=FullPost)
 async def get_post(id: int):
-   cursor.execute("SELECT * FROM posts WHERE id = ?", (id,))
-   post = cursor.fetchone()
-   if post is None:
-       raise HTTPException(status_code=404, detail="Post not found")
-       
-   try:
-       images = json.loads(post[6] if post[6] else '[]')
-   except (json.JSONDecodeError, TypeError):
-       images = []
-       
-   author_id = None if post[3] == 'null' else post[3]
-       
-   return FullPost(
-       id=post[0],
-       title=post[1],
-       author=post[2],
-       author_id=author_id,
-       time=post[4],
-       contents=post[5],
-       images=images,
-       isdeleted=post[7],
-       isblinded=post[8]
-   )
+    debug_print(f"Fetching full post details for post id {id}")
+    cursor.execute("SELECT * FROM posts WHERE id = ?", (id,))
+    post = cursor.fetchone()
+    if post is None:
+        debug_print(f"Post with id {id} not found in database")
+        raise HTTPException(status_code=404, detail="Post not found")
+    debug_print(f"Fetched details for post id {id}: {post}")
+    return FullPost(
+        id=post[0],
+        title=post[1],
+        author=post[2],
+        author_id=post[3],
+        time=post[4],
+        contents=post[5],
+        images=json.loads(post[6]),
+        isdeleted=post[7],
+        isblinded=post[8]
+    )
 
 @app.get("/api/database_check")
 async def database_check():
