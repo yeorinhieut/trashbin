@@ -168,9 +168,11 @@ async def save_post(id, doc):
     time_str = doc.time.isoformat()
 
     try:
-        cursor.execute('''INSERT OR REPLACE INTO posts (id, title, author, author_id, time, contents, images)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                       (id, doc.title, doc.author, doc.author_id, time_str, doc.contents, json.dumps(images)))
+        cursor.execute('''INSERT OR REPLACE INTO posts 
+                  (id, title, author, author_id, time, contents, images, isdeleted, isblinded)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                       (id, doc.title, doc.author, doc.author_id, time_str, doc.contents, 
+                 json.dumps(images), 0, 0))
         conn.commit()
         debug_print(f"Post {id} saved to database successfully")
     except sqlite3.Error as e:
