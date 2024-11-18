@@ -20,22 +20,33 @@ def debug_print(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
 
+def add_column_if_not_exists(cursor, table_name, column_name, column_type):
+    try:
+        cursor.execute(f"SELECT {column_name} FROM {table_name} LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+        debug_print(f"Added new column {column_name} to {table_name}")
+
 # Database setup
 conn = sqlite3.connect('./data/trash.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Create tables if not exist
+# Create table if not exists
 cursor.execute('''CREATE TABLE IF NOT EXISTS posts
                   (id INTEGER PRIMARY KEY,
                    title TEXT,
                    author TEXT,
-                   author_id TEXT DEFAULT NULL,
                    time TEXT,
                    contents TEXT,
                    images TEXT,
                    isdeleted INTEGER DEFAULT 0,
                    isblinded INTEGER DEFAULT 0)''')
+
+# Add new columns if they don't exist
+add_column_if_not_exists(cursor, 'posts', 'author_id', 'TEXT DEFAULT NULL')
+
 conn.commit()
+
 
 app = FastAPI()
 
@@ -158,7 +169,7 @@ async def save_post(id, doc):
 
     try:
         cursor.execute('''INSERT OR REPLACE INTO posts (id, title, author, author_id, time, contents, images)
-                          VALUES (?, ?, ?, ?, ?, ?)''',
+                          VALUES (?, ?, ?, ?, ?, ?, ?)''',
                        (id, doc.title, doc.author, doc.author_id, time_str, doc.contents, json.dumps(images)))
         conn.commit()
         debug_print(f"Post {id} saved to database successfully")
