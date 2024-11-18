@@ -2,7 +2,7 @@ import asyncio
 import json
 import sqlite3
 import os
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
 
 import aiohttp
@@ -114,7 +114,7 @@ class FullPost(BaseModel):
    id: int
    title: str
    author: str
-   author_id: str | None
+   author_id: Optional[str]
    time: str
    contents: str
    images: List[dict]
